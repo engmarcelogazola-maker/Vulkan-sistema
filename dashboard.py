@@ -4,151 +4,123 @@ import pandas as pd
 import plotly.graph_objects as go
 import numpy as np
 
-# 1. Configuração da Página e Estilo Premium
-st.set_page_config(page_title="VULKAN - Inteligência Financeira", layout="wide")
+# 1. Configuração e Estilo
+st.set_page_config(page_title="VULKAN SYSTEM", layout="wide")
 
 st.markdown("""
     <style>
     .main { background-color: #0e1117; }
-    .stMetric { background-color: #161b22; border-radius: 12px; padding: 18px; border: 1px solid #30363d; box-shadow: 0 2px 8px rgba(0,0,0,0.2); }
-    [data-testid="stMetricValue"] { font-size: 26px !important; }
-    .status-banner {
-        padding: 30px; 
-        border-radius: 15px; 
-        text-align: center; 
-        margin-bottom: 30px;
-        border: 1px solid rgba(255,255,255,0.15);
-        box-shadow: 0 4px 15px rgba(0,0,0,0.3);
-    }
-    .status-banner p { color: white !important; font-size: 16px; margin-top: 12px; opacity: 0.95; }
-    .status-banner b { color: #f0f0f0 !important; font-weight: bold; }
-    .disclaimer-box {
-        background-color: #1a1c23;
-        padding: 20px;
-        border-radius: 10px;
-        border-left: 5px solid #f59e0b;
-        font-size: 14px;
-        color: #94a3b8;
-        margin-top: 30px;
-    }
+    .stMetric { background-color: #161b22; border-radius: 12px; padding: 18px; border: 1px solid #30363d; }
+    .status-banner { padding: 25px; border-radius: 15px; text-align: center; margin-bottom: 25px; border: 1px solid rgba(255,255,255,0.1); }
+    .clean-disclaimer { font-size: 12px; color: #4b5563; text-align: center; margin-top: 50px; padding: 20px; border-top: 1px solid #1f2937; }
     </style>
     """, unsafe_allow_html=True)
 
-# 2. Barra Lateral: "A" VULKAN e Termo de Aceite
+# 2. Lógica de Aceite e Menu Lateral
 with st.sidebar:
-    st.image("https://cdn-icons-png.flaticon.com/512/1162/1162501.png", width=70) # Ícone ilustrativo
-    st.title("🛡️ A VULKAN SYSTEM")
+    st.title("🛡️ VULKAN SYSTEM")
     st.markdown("---")
     
-    st.subheader("📋 Termo de Responsabilidade")
-    termo = st.checkbox("Estou ciente que esta plataforma é uma ferramenta de apoio e que toda decisão financeira é de minha inteira responsabilidade.")
-    
-    if not termo:
-        st.warning("⚠️ Você precisa aceitar os termos para liberar o acesso à análise.")
+    # Sistema de Aceite que "some" após clicar
+    if 'aceitou_termo' not in st.session_state:
+        st.session_state.aceitou_termo = False
+
+    if not st.session_state.aceitou_termo:
+        st.subheader("📋 Termo de Responsabilidade")
+        st.info("Para acessar a inteligência VULKAN, confirme sua ciência abaixo:")
+        if st.checkbox("Compreendo que toda ação financeira é de minha inteira responsabilidade e que esta plataforma é apenas uma ferramenta de apoio estatístico."):
+            st.session_state.aceitou_termo = True
+            st.rerun()
         st.stop()
+    else:
+        st.success("✅ Acesso Autorizado")
 
-    st.success("✅ Acesso Liberado")
-    st.markdown("---")
+    # JANELA 01: Seleção de Mercado
+    st.subheader("🌐 Janela 01: Mercado")
+    mercado = st.selectbox("Escolha a categoria:", ["Bolsa Brasileira (B3)", "Commodities", "Moedas & Cripto"])
 
-    # Lista de ativos estável
-    opcoes_ativos = {
-        "Bitcoin (USD)": "BTC-USD",
-        "Ethereum (ETH)": "ETH-USD",
-        "Dólar para Real": "USDBRL=X",
-        "FII XP Malls (XPML11)": "XPML11.SA",
-        "FII HGLG11": "HGLG11.SA",
-        "Ação Petrobras (PETR4)": "PETR4.SA",
-        "S&P 500 Index": "^GSPC"
-    }
-    escolha = st.selectbox("Selecione o Ativo:", list(opcoes_ativos.keys()))
-    ticker = opcoes_ativos[escolha]
+    # JANELA 02: Seleção de Ativo (Baseado na Janela 01)
+    st.subheader("📈 Janela 02: Ativo")
+    if mercado == "Bolsa Brasileira (B3)":
+        lista_ativos = {
+            "Petrobras (PETR4)": "PETR4.SA", "Vale (VALE3)": "VALE3.SA", "Itaú (ITUB4)": "ITUB4.SA", 
+            "Ambev (ABEV3)": "ABEV3.SA", "XP Malls (XPML11)": "XPML11.SA", "HGLG11": "HGLG11.SA", "KNCR11": "KNCR11.SA"
+        }
+    elif mercado == "Commodities":
+        lista_ativos = {
+            "Petróleo Brent": "BZ=F", "Ouro": "GC=F", "Café": "KC=F", 
+            "Soja": "ZS=F", "Milho": "ZC=F", "Algodão": "CT=F", "Prata": "SI=F"
+        }
+    else:
+        lista_ativos = {
+            "Bitcoin (USD)": "BTC-USD", "Ethereum (ETH)": "ETH-USD", "Dólar/Real": "USDBRL=X", "Euro/Dólar": "EURUSD=X"
+        }
+    
+    ticker = lista_ativos[st.selectbox("Selecione o ativo específico:", list(lista_ativos.keys()))]
 
-    # Campo manual otimizado
-    ticker_manual = st.text_input("Ou digite o código manualmente (ex: SOL-USD):", "")
-    if ticker_manual:
-        ticker = ticker_manual.upper()
-
-    # Gestão de Banca (Retornando o saldo)
+    # GESTÃO DE BANCA: Barra Deslizante e Moedas
     st.markdown("---")
     st.subheader("💰 Gestão de Banca")
-    banca = st.number_input("Sua Banca ($ ou R$)", value=1000.0)
+    moeda_banca = st.radio("Moeda da conta:", ["USD", "BRL", "EUR"], horizontal=True)
+    
+    valor_banca = st.select_slider(
+        f"Selecione o valor ({moeda_banca}):",
+        options=[100, 500, 1000, 5000, 10000, 50000, 100000, 500000, 1000000],
+        value=1000
+    )
+    # Campo para ajuste fino caso queiram digitar
+    valor_ajuste = st.number_input("Ajuste fino do valor:", value=valor_banca)
 
-# 3. Busca de Dados (Lógica que funcionou perfeitamente)
+# 3. Processamento de Dados
 dados = yf.download(ticker, period="6mo", interval="1d", progress=False)
 
-if not dados.empty and len(dados) > 50:
-    # Seus cálculos originais mantidos
+if not dados.empty:
+    # Cálculos Estáveis
     dados['SMA20'] = dados['Close'].rolling(window=20).mean()
-    
     delta = dados['Close'].diff()
     gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
     loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
     dados['RSI'] = 100 - (100 / (1 + (gain / loss)))
 
-    # Extração de valores (Usando ravel)
     preco_atual = float(dados['Close'].values.ravel()[-1])
     rsi_val = float(dados['RSI'].values.ravel()[-1])
-    sma20_val = float(dados['SMA20'].values.ravel()[-1])
 
-    # Lógica do Veredito Educativo (Lapidado)
-    if rsi_val < 35:
-        sinal, cor, desc = "COMPRA FORTE", "#108542", "A região indica exaustão vendedora. É uma oportunidade estatística, não uma garantia."
-    elif rsi_val > 65:
-        sinal, cor, desc = "VENDA / RISCO", "#a50e0e", "O preço está esticado acima da média. Momento de cautela e proteção de capital."
-    else:
-        sinal, cor, desc = "NEUTRO / AGUARDAR", "#d97706", "Sem vantagem estatística clara no momento. Preserve sua banca e aguarde."
+    # Lógica de Veredito (Mantendo o feminino nos textos)
+    if rsi_val < 35: sinal, cor, desc = "COMPRA FORTE", "#108542", "A VULKAN detectou exaustão vendedora. Região estatística favorável."
+    elif rsi_val > 65: sinal, cor, desc = "VENDA / RISCO", "#a50e0e", "A VULKAN detectou sobrecompra. Momento de proteção e cautela."
+    else: sinal, cor, desc = "NEUTRO / AGUARDAR", "#d97706", "A VULKAN não identifica vantagem clara. Preserve sua banca."
 
-    # 4. Banner de Veredito com Dados Otimizados (Retornando as informações)
+    # 4. Interface Principal
     st.markdown(f"""
         <div class="status-banner" style="background-color:{cor};">
-            <h1 style="color:white; margin:0; font-size: 32px; font-weight: bold;">VEREDITO DA VULKAN: {sinal}</h1>
-            <p>
-                <b>Ativo:</b> {ticker} | <b>Preço:</b> ${preco_atual:,.2f} | <b>RSI (14d):</b> {rsi_val:.2f} | <b>Média (20d):</b> ${sma20_val:,.2f}
-            </p>
-            <small style="color:white; opacity:0.85; margin-top:10px;">{desc}</small>
+            <h1 style="color:white; margin:0; font-size: 26px;">VEREDITO VULKAN: {sinal}</h1>
+            <p style="color:white; opacity:0.9; margin-top:5px;">{desc}</p>
         </div>
         """, unsafe_allow_html=True)
 
-    # 5. Métricas e Calculadora de Posição (Retornando a banca)
     c1, c2, c3 = st.columns(3)
-    c1.metric("Preço Atual", f"$ {preco_atual:,.2f}")
-    c2.metric("Termómetro RSI", f"{rsi_val:.2f}")
-    
-    # Sugestão de lote baseada em 2% de risco
-    risco_sugerido = banca * 0.02
-    c3.metric("Risco Sugerido (2%)", f"$ {risco_sugerido:,.2f}")
+    c1.metric("Preço Atual", f"{moeda_banca} {preco_atual:,.2f}")
+    c2.metric("Termômetro RSI", f"{rsi_val:.2f}")
+    c3.metric("Risco Sugerido (2%)", f"{moeda_banca} {(valor_ajuste * 0.02):,.2f}")
 
-    # 6. Gráficos Profissionais (Candlestick e RSI em colunas)
-    tab1, tab2 = st.tabs(["📈 Gráfico de Preço", "📊 Força Relativa (RSI)"])
-
+    tab1, tab2 = st.tabs(["📈 Gráfico", "📉 Filtro RSI"])
     with tab1:
-        fig_preco = go.Figure()
-        fig_preco.add_trace(go.Candlestick(x=dados.index, open=dados['Open'].values.ravel(),
-                    high=dados['High'].values.ravel(), low=dados['Low'].values.ravel(),
-                    close=dados['Close'].values.ravel(), name='Preço'))
-        fig_preco.add_trace(go.Scatter(x=dados.index, y=dados['SMA20'].values.ravel(), name='Média 20', line=dict(color='#00d4ff', width=1.8)))
-        fig_preco.update_layout(template="plotly_dark", height=480, xaxis_rangeslider_visible=False, margin=dict(l=10,r=10))
-        st.plotly_chart(fig_preco, use_container_width=True)
-
+        fig = go.Figure(data=[go.Candlestick(x=dados.index, open=dados['Open'].values.ravel(), high=dados['High'].values.ravel(), 
+                                               low=dados['Low'].values.ravel(), close=dados['Close'].values.ravel())])
+        fig.update_layout(template="plotly_dark", height=450, xaxis_rangeslider_visible=False)
+        st.plotly_chart(fig, use_container_width=True)
+    
     with tab2:
-        fig_rsi = go.Figure()
-        fig_rsi.add_hrect(y0=70, y1=100, fillcolor="red", opacity=0.1, line_width=0)
-        fig_rsi.add_hrect(y0=0, y1=30, fillcolor="green", opacity=0.1, line_width=0)
-        fig_rsi.add_hline(y=70, line_dash="dash", line_color="red")
-        fig_rsi.add_hline(y=30, line_dash="dash", line_color="green")
-        fig_rsi.add_trace(go.Scatter(x=dados.index, y=dados['RSI'].values.ravel(), name='RSI', line=dict(color='#9b51e0', width=2)))
-        fig_rsi.update_layout(template="plotly_dark", height=350, yaxis=dict(range=[0, 100]), margin=dict(l=10,r=10))
-        st.plotly_chart(fig_rsi, use_container_width=True)
+        fig_r = go.Figure(data=[go.Scatter(x=dados.index, y=dados['RSI'].values.ravel(), line=dict(color='#9b51e0'))])
+        fig_r.update_layout(template="plotly_dark", height=350, yaxis=dict(range=[0, 100]))
+        st.plotly_chart(fig_r, use_container_width=True)
 
-    # 7. Cláusula de Responsabilidade Fixa no Rodapé
+    # 5. Rodapé Clean
     st.markdown(f"""
-        <div class="disclaimer-box">
-            <strong>⚠️ AVISO LEGAL IMPORTANTE:</strong> A VULKAN SYSTEM é uma plataforma de análise de dados e estatísticas históricas. 
-            O mercado financeiro envolve riscos significativos. Toda e qualquer decisão de investimento é de sua inteira responsabilidade. 
-            Este site não fornece recomendações diretas. Retornos passados não garantem lucros futuros. 
-            Não invista capital que você não pode perder.
+        <div class="clean-disclaimer">
+            VULKAN SYSTEM | A inteligência de dados aplicada ao mercado. <br>
+            Aviso: Esta ferramenta fornece dados estatísticos. Toda decisão financeira é de responsabilidade exclusiva do investidor.
         </div>
     """, unsafe_allow_html=True)
-
 else:
-    st.error("⚠️ Sincronizando com a Bolsa de Valores... Selecione outro ativo na lateral para destravar.")
+    st.error("Erro ao carregar dados. Tente selecionar outro ativo.")
