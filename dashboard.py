@@ -20,7 +20,17 @@ st.markdown("""
         font-size: 24px;
         letter-spacing: 1px;
     }
-    .info-box { background-color: #1e293b; padding: 15px; border-radius: 8px; border-left: 5px solid #3b82f6; margin-bottom: 20px; font-size: 14px; color: #cbd5e1; line-height: 1.6; }
+    .info-box { 
+        background-color: #1e293b; 
+        padding: 15px; 
+        border-radius: 8px; 
+        border-left: 5px solid #ef4444; 
+        margin-bottom: 20px; 
+        font-size: 15px; 
+        color: #f8fafc; 
+        line-height: 1.6;
+    }
+    .highlight-cents { color: #f87171; font-weight: 900; text-decoration: underline; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -64,15 +74,16 @@ with st.sidebar:
 dados = yf.download(ticker, period="6mo", interval="1d", progress=False)
 
 if not dados.empty:
+    # Cálculo RSI
     delta = dados['Close'].diff()
     gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
     loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
-    rsi_series = 100 - (100 / (1 + (gain / loss)))
+    dados['RSI'] = 100 - (100 / (1 + (gain / loss)))
     
-    p_raw = float(dados['Close'].values.ravel()[-1])
-    r_val = float(rsi_series.values.ravel()[-1])
+    p_raw = float(dados['Close'].iloc[-1])
+    r_val = float(dados['RSI'].iloc[-1])
 
-    # Lógica de Preço e Conversão (Blindada)
+    # Lógica de Preço
     is_cents = ("Soja" in nome_ativo or "Milho" in nome_ativo)
     p_base = p_raw / 100 if is_cents else p_raw
     m_origem = "BRL" if ticker.endswith(".SA") or ticker == "USDBRL=X" else "USD"
@@ -82,37 +93,47 @@ if not dados.empty:
     else:
         p_final = p_base / usd_brl_rate if moeda_b == "USD" else (p_base / usd_brl_rate) / eur_usd_rate if moeda_b == "EUR" else p_base
 
-    # 4. Banner Ultra-Clean
+    # 4. Interface Principal
     if r_val < 35: acao, cor = "COMPRAR", "#108542"
     elif r_val > 65: acao, cor = "VENDER", "#a50e0e"
     else: acao, cor = "AGUARDAR", "#d97706"
 
     st.markdown(f'<div class="status-banner" style="background-color:{cor}; color: white;">{acao} {nome_ativo.upper()}</div>', unsafe_allow_html=True)
 
-    # Nota Técnica Dinâmica com Ênfase em CENTAVOS
     if is_cents:
         st.markdown(f"""
             <div class="info-box">
-                <b>Nota Técnica:</b> Em Chicago, o preço de <b>{p_raw:,.2f}</b> refere-se a <b>CENTAVOS DE DÓLAR</b>. <br>
-                💵 Isso equivale a <b>USD {p_base:,.4f}</b> por bushel. <br>
-                📌 <b>Contrato Padrão:</b> 5.000 bushels | <b>Conversão estimada:</b> {moeda_b} {(p_final * 2.3622):,.2f} por saca (60kg).
+                ⚠️ <b>ATENÇÃO:</b> Em Chicago, o preço de <b>{p_raw:,.2f}</b> refere-se a <span class="highlight-cents">CENTAVOS DE DÓLAR</span>. <br>
+                💵 Equivalente real: <b>USD {p_base:,.4f}</b> por bushel. <br>
+                📌 <b>Contrato Padrão:</b> 5.000 bushels | <b>Saca (60kg) estimada:</b> {moeda_b} {(p_final * 2.3622):,.2f}
             </div>
         """, unsafe_allow_html=True)
 
-    # Métricas
     c1, c2, c3 = st.columns(3)
     c1.metric("Preço Atual", f"{moeda_b} {p_final:,.2f}")
     c2.metric("Força (RSI)", f"{r_val:.2f}")
     c3.metric("Risco (2%)", f"{moeda_b} {(banca * 0.02):,.2f}")
 
-    tab1, tab2 = st.tabs(["📈 Gráfico", "📉 Indicador"])
+    # GRÁFICOS (Correção de Índice)
+    tab1, tab2 = st.tabs(["📈 Gráfico de Preço", "📉 Indicador de Força"])
     with tab1:
-        fig = go.Figure(data=[go.Candlestick(x=dados.index, open=dados['Open'], high=dados['High'], low=dados['Low'], close=dados['Close'])])
-        fig.update_layout(template="plotly_dark", height=450, xaxis_rangeslider_visible=False, margin=dict(l=0, r=0, t=0, b=0))
+        fig = go.Figure(data=[go.Candlestick(
+            x=dados.index,
+            open=dados['Open'],
+            high=dados['High'],
+            low=dados['Low'],
+            close=dados['Close'],
+            name='Candles'
+        )])
+        fig.update_layout(template="plotly_dark", height=450, xaxis_rangeslider_visible=False, margin=dict(l=0, r=0, t=10, b=0))
         st.plotly_chart(fig, use_container_width=True)
     with tab2:
-        st.line_chart(rsi_series)
+        fig_rsi = go.Figure(data=[go.Scatter(x=dados.index, y=dados['RSI'], line=dict(color='#9b51e0', width=2))])
+        fig_rsi.add_hrect(y0=70, y1=100, fillcolor="red", opacity=0.1, line_width=0)
+        fig_rsi.add_hrect(y0=0, y1=30, fillcolor="green", opacity=0.1, line_width=0)
+        fig_rsi.update_layout(template="plotly_dark", height=350, yaxis=dict(range=[0, 100]), margin=dict(l=0, r=0, t=10, b=0))
+        st.plotly_chart(fig_rsi, use_container_width=True)
 
-    st.markdown('<div style="text-align:center; color:#4b5563; font-size:12px; margin-top:30px;">VULKAN SYSTEM | Inteligência Aplicada ao Mercado Multicamadas</div>', unsafe_allow_html=True)
+    st.markdown('<div style="text-align:center; color:#4b5563; font-size:12px; margin-top:30px;">VULKAN SYSTEM | Monitoramento Multicamadas</div>', unsafe_allow_html=True)
 else:
-    st.error("Dados indisponíveis para este ativo.")
+    st.error("Não foi possível carregar os dados. Tente novamente.")
