@@ -2,9 +2,8 @@ import streamlit as st
 import yfinance as yf
 import pandas as pd
 import plotly.graph_objects as go
-import numpy as np
 
-# 1. Setup e Estilo
+# 1. Configuração de Estilo
 st.set_page_config(page_title="VULKAN SYSTEM", layout="wide")
 
 st.markdown("""
@@ -13,111 +12,109 @@ st.markdown("""
     .stMetric { background-color: #161b22; border-radius: 12px; padding: 18px; border: 1px solid #30363d; }
     .status-banner { 
         padding: 20px; border-radius: 10px; text-align: center; margin-bottom: 25px; 
-        font-weight: bold; font-size: 24px; letter-spacing: 1px;
+        font-weight: bold; font-size: 26px; text-transform: uppercase;
     }
     .info-box { 
         background-color: #1e293b; padding: 15px; border-radius: 8px; border-left: 5px solid #ef4444; 
         margin-bottom: 20px; font-size: 15px; color: #f8fafc; line-height: 1.6;
     }
-    .highlight-cents { color: #f87171; font-weight: 900; text-decoration: underline; font-size: 17px; }
+    .alert-text { color: #f87171; font-weight: 900; text-decoration: underline; font-size: 18px; }
     </style>
     """, unsafe_allow_html=True)
+
+@st.cache_data(ttl=600)
+def get_data(ticker):
+    try:
+        df = yf.download(ticker, period="6mo", interval="1d", progress=False)
+        if df.empty: return None
+        # Reset de índice para garantir que a data seja uma coluna limpa
+        df = df.reset_index()
+        return df
+    except: return None
 
 @st.cache_data(ttl=3600)
 def get_cambio():
     try:
-        usd_brl = yf.download("USDBRL=X", period="1d", progress=False)['Close']
-        eur_usd = yf.download("EURUSD=X", period="1d", progress=False)['Close']
-        return float(usd_brl.iloc[-1]), float(eur_usd.iloc[-1])
-    except: return 5.15, 1.08
+        usd = yf.download("USDBRL=X", period="1d", progress=False)['Close'].iloc[-1]
+        eur = yf.download("EURUSD=X", period="1d", progress=False)['Close'].iloc[-1]
+        return float(usd), float(eur)
+    except: return 5.10, 1.08
 
-usd_brl_rate, eur_usd_rate = get_cambio()
-
-# 2. Barra Lateral
+# 2. Sidebar
 with st.sidebar:
     st.title("🛡️ VULKAN SYSTEM")
-    if 'aceitou' not in st.session_state: st.session_state.aceitou = False
-    if not st.session_state.aceitou:
-        if st.checkbox("Aceito os termos de responsabilidade"):
-            st.session_state.aceitou = True
+    if 'auth' not in st.session_state: st.session_state.auth = False
+    if not st.session_state.auth:
+        if st.checkbox("Aceito os Termos de Responsabilidade"):
+            st.session_state.auth = True
             st.rerun()
         st.stop()
-    
+
     mercado = st.selectbox("Mercado:", ["Bolsa Brasileira (B3)", "Commodities", "Moedas & Cripto"])
-    
     if mercado == "Bolsa Brasileira (B3)":
-        lista = {"Petrobras (PETR4)": "PETR4.SA", "Vale (VALE3)": "VALE3.SA", "Itaú (ITUB4)": "ITUB4.SA", "Ambev (ABEV3)": "ABEV3.SA", "XP Malls (XPML11)": "XPML11.SA", "MXRF11": "MXRF11.SA", "HGLG11": "HGLG11.SA", "KNCR11": "KNCR11.SA"}
+        ativos = {"Petrobras (PETR4)": "PETR4.SA", "Vale (VALE3)": "VALE3.SA", "Itaú (ITUB4)": "ITUB4.SA", "XP Malls (XPML11)": "XPML11.SA", "MXRF11": "MXRF11.SA", "HGLG11": "HGLG11.SA"}
     elif mercado == "Commodities":
-        lista = {"Soja": "ZS=F", "Milho": "ZC=F", "Petróleo Brent": "BZ=F", "Ouro": "GC=F", "Prata": "SI=F", "Café": "KC=F", "Algodão": "CT=F"}
+        ativos = {"Soja": "ZS=F", "Milho": "ZC=F", "Petróleo Brent": "BZ=F", "Ouro": "GC=F", "Prata": "SI=F", "Café": "KC=F"}
     else:
-        lista = {"Bitcoin (USD)": "BTC-USD", "Ethereum (ETH)": "ETH-USD", "Solana (USD)": "SOL-USD", "Dólar para Real": "USDBRL=X", "S&P 500 Index": "^GSPC"}
+        ativos = {"Bitcoin (USD)": "BTC-USD", "Ethereum (ETH)": "ETH-USD", "Dólar/Real": "USDBRL=X", "S&P 500": "^GSPC"}
     
-    nome_ativo = st.selectbox("Ativo:", list(lista.keys()))
-    ticker = lista[nome_ativo]
+    nome_ativo = st.selectbox("Ativo:", list(ativos.keys()))
+    ticker = ativos[nome_ativo]
     
     st.markdown("---")
-    moeda_b = st.radio("Exibir em:", ["USD", "BRL", "EUR"], horizontal=True)
-    banca = st.select_slider("Banca:", options=[100, 1000, 5000, 10000, 50000, 100000, 1000000], value=1000)
+    moeda_v = st.radio("Moeda:", ["USD", "BRL", "EUR"], horizontal=True)
+    banca = st.select_slider("Sua Banca:", options=[100, 1000, 5000, 10000, 50000, 100000, 1000000], value=1000)
 
-# 3. Busca de Dados com Tratamento de Erro
-try:
-    dados = yf.download(ticker, period="6mo", interval="1d", progress=False)
-    if not dados.empty:
-        # Cálculo RSI
-        delta = dados['Close'].diff()
-        gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
-        loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
-        dados['RSI'] = 100 - (100 / (1 + (gain / loss)))
-        
-        p_raw = float(dados['Close'].iloc[-1])
-        r_val = float(dados['RSI'].iloc[-1])
+# 3. Lógica Principal
+usd_brl, eur_usd = get_cambio()
+dados = get_data(ticker)
 
-        # Lógica de Preço
-        is_cents = ("Soja" in nome_ativo or "Milho" in nome_ativo)
-        p_base = p_raw / 100 if is_cents else p_raw
-        m_origem = "BRL" if ticker.endswith(".SA") or ticker == "USDBRL=X" else "USD"
-        
-        if m_origem == "USD":
-            p_final = p_base * usd_brl_rate if moeda_b == "BRL" else p_base / eur_usd_rate if moeda_b == "EUR" else p_base
-        else:
-            p_final = p_base / usd_brl_rate if moeda_b == "USD" else (p_base / usd_brl_rate) / eur_usd_rate if moeda_b == "EUR" else p_base
-
-        # 4. Banner
-        if r_val < 35: acao, cor = "COMPRAR", "#108542"
-        elif r_val > 65: acao, cor = "VENDER", "#a50e0e"
-        else: acao, cor = "AGUARDAR", "#d97706"
-
-        st.markdown(f'<div class="status-banner" style="background-color:{cor}; color: white;">{acao} {nome_ativo.upper()}</div>', unsafe_allow_html=True)
-
-        if is_cents:
-            st.markdown(f"""
-                <div class="info-box">
-                    ⚠️ <b>LEITURA TÉCNICA:</b> O valor de <b>{p_raw:,.2f}</b> representa <span class="highlight-cents">CENTAVOS DE DÓLAR</span>. <br>
-                    💵 Valor Unitário: <b>USD {p_base:,.4f}</b> por bushel. <br>
-                    📌 <b>Saca (60kg) estimada:</b> {moeda_b} {(p_final * 2.3622):,.2f}
-                </div>
-            """, unsafe_allow_html=True)
-
-        c1, c2, c3 = st.columns(3)
-        c1.metric("Preço Atual", f"{moeda_b} {p_final:,.2f}")
-        c2.metric("Força (RSI)", f"{r_val:.2f}")
-        c3.metric("Risco (2%)", f"{moeda_b} {(banca * 0.02):,.2f}")
-
-        tab1, tab2 = st.tabs(["📈 Gráfico de Preço", "📉 Indicador de Força"])
-        with tab1:
-            fig = go.Figure(data=[go.Candlestick(x=dados.index, open=dados['Open'], high=dados['High'], low=dados['Low'], close=dados['Close'], name='Candles')])
-            fig.update_layout(template="plotly_dark", height=450, xaxis_rangeslider_visible=False, margin=dict(l=0, r=0, t=10, b=0))
-            st.plotly_chart(fig, use_container_width=True)
-        with tab2:
-            fig_rsi = go.Figure(data=[go.Scatter(x=dados.index, y=dados['RSI'], line=dict(color='#9b51e0', width=2))])
-            fig_rsi.add_hrect(y0=70, y1=100, fillcolor="red", opacity=0.1, line_width=0)
-            fig_rsi.add_hrect(y0=0, y1=30, fillcolor="green", opacity=0.1, line_width=0)
-            fig_rsi.update_layout(template="plotly_dark", height=350, yaxis=dict(range=[0, 100]), margin=dict(l=0, r=0, t=10, b=0))
-            st.plotly_chart(fig_rsi, use_container_width=True)
+if dados is not None:
+    # Cálculos
+    close_col = dados['Close'].values.flatten()
+    delta = pd.Series(close_col).diff()
+    gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
+    loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
+    rsi_val = (100 - (100 / (1 + (gain / loss)))).iloc[-1]
+    
+    p_raw = float(close_col[-1])
+    is_cents = ("Soja" in nome_ativo or "Milho" in nome_ativo)
+    p_unit_usd = p_raw / 100 if is_cents else p_raw
+    
+    # Conversão de Moeda
+    m_origem = "BRL" if ticker.endswith(".SA") or "BRL" in ticker else "USD"
+    if m_origem == "USD":
+        p_final = p_unit_usd * usd_brl if moeda_v == "BRL" else p_unit_usd / eur_usd if moeda_v == "EUR" else p_unit_usd
     else:
-        st.warning("Aguardando dados do mercado...")
+        p_final = p_unit_usd / usd_brl if moeda_v == "USD" else (p_unit_usd / usd_brl) / eur_usd if moeda_v == "EUR" else p_unit_usd
 
-except Exception as e:
-    st.error(f"Erro na conexão com a Bolsa. Tente trocar o ativo ou Mercado.")
+    # 4. Interface
+    if rsi_val < 35: acao, cor = "COMPRAR", "#108542"
+    elif rsi_val > 65: acao, cor = "VENDER", "#a50e0e"
+    else: acao, cor = "AGUARDAR", "#d97706"
 
-st.markdown('<div style="text-align:center; color:#4b5563; font-size:12px; margin-top:30px;">VULKAN SYSTEM | Inteligência Multicamadas</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="status-banner" style="background-color:{cor}; color: white;">{acao} {nome_ativo}</div>', unsafe_allow_html=True)
+
+    if is_cents:
+        st.markdown(f"""
+            <div class="info-box">
+                🚨 <b>IMPORTANTE:</b> O valor de {p_raw:,.2f} na bolsa refere-se a <span class="alert-text">CENTAVOS DE DÓLAR</span>. <br>
+                💵 Isso equivale a <b>USD {p_unit_usd:,.4f}</b> por bushel. <br>
+                📌 <b>Saca (60kg) estimada:</b> {moeda_v} {(p_final * 2.3622):,.2f}
+            </div>
+        """, unsafe_allow_html=True)
+
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Preço Atual", f"{moeda_v} {p_final:,.2f}")
+    c2.metric("Força RSI", f"{rsi_val:.2f}")
+    c3.metric("Risco (2%)", f"{moeda_v} {(banca * 0.02):,.2f}")
+
+    t1, t2 = st.tabs(["📊 Gráfico", "📈 RSI"])
+    with t1:
+        fig = go.Figure(data=[go.Candlestick(x=dados['Date'], open=dados['Open'], high=dados['High'], low=dados['Low'], close=dados['Close'])])
+        fig.update_layout(template="plotly_dark", height=450, xaxis_rangeslider_visible=False, margin=dict(l=0,r=0,t=0,b=0))
+        st.plotly_chart(fig, use_container_width=True)
+    with t2:
+        st.line_chart(100 - (100 / (1 + (gain / loss))))
+else:
+    st.error("Erro ao conectar com a Bolsa. Tente trocar o Ativo ou Mercado.")
