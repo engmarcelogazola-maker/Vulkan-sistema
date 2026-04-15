@@ -3,7 +3,7 @@ import yfinance as yf
 import pandas as pd
 import plotly.graph_objects as go
 
-# 1. Configuração e Estilo
+# 1. Configuração de Estilo e Identidade
 st.set_page_config(page_title="VULKAN | MARKET SCAN", layout="wide")
 
 st.markdown("""
@@ -19,12 +19,12 @@ st.markdown("""
         margin-bottom: 20px; font-size: 15px; color: #f8fafc; line-height: 1.6;
     }
     .highlight-cents { color: #f87171; font-weight: 900; text-decoration: underline; font-size: 18px; }
-    .logo-text { font-size: 24px; font-weight: bold; color: #FFFFFF; margin-bottom: -10px; }
-    .sub-logo { font-size: 12px; letter-spacing: 3px; color: #FF4500; font-weight: bold; }
+    .logo-text { font-size: 28px; font-weight: bold; color: #FFFFFF; margin-bottom: -10px; letter-spacing: 1px; }
+    .sub-logo { font-size: 11px; letter-spacing: 4px; color: #FF4500; font-weight: bold; margin-bottom: 20px; }
     </style>
     """, unsafe_allow_html=True)
 
-# Funções de Dados
+# Funções de Dados Estáveis
 @st.cache_data(ttl=600)
 def get_clean_data(ticker):
     try:
@@ -43,39 +43,49 @@ def get_cambio():
         return float(usd['Close'].iloc[-1]), 1.08
     except: return 5.15, 1.08
 
-# 2. Sidebar
+# 2. Barra Lateral (Sidebar)
 with st.sidebar:
+    # Cabeçalho da Marca
     st.markdown('<div class="logo-text">VULKAN</div><div class="sub-logo">MARKET SCAN</div>', unsafe_allow_html=True)
-    st.markdown("---")
     
-    if 'auth' not in st.session_state: st.session_state.auth = False
-    if not st.session_state.auth:
-        if st.checkbox("Liberar Acesso Profissional"):
-            st.session_state.auth = True
-            st.rerun()
-        st.stop()
+    # --- TRAVA DE SEGURANÇA (AVISO DE RESPONSABILIDADE) ---
+    if 'auth_vulkan' not in st.session_state:
+        st.session_state.auth_vulkan = False
 
-    mercado = st.selectbox("Mercado:", ["Bolsa Brasileira (B3)", "Commodities", "Moedas & Cripto"])
+    if not st.session_state.auth_vulkan:
+        st.warning("⚠️ AVISO LEGAL")
+        st.info("Este software é uma ferramenta de análise estatística. O uso das informações é de sua inteira responsabilidade. Decisões de investimento envolvem risco.")
+        if st.checkbox("CONCORDO COM OS TERMOS"):
+            st.session_state.auth_vulkan = True
+            st.rerun()
+        st.stop() # Interrompe o código aqui se não aceitar
+    
+    st.success("Acesso Profissional Ativo")
+    st.markdown("---")
+
+    # Filtros de Mercado
+    mercado = st.selectbox("Selecione o Mercado:", ["Bolsa Brasileira (B3)", "Commodities", "Moedas & Cripto"])
     
     if mercado == "Bolsa Brasileira (B3)":
-        ativos = {"Petrobras (PETR4)": "PETR4.SA", "Vale (VALE3)": "VALE3.SA", "Itaú (ITUB4)": "ITUB4.SA", "Ambev (ABEV3)": "ABEV3.SA", "XP Malls (XPML11)": "XPML11.SA", "Kinea RI (KNCR11)": "KNCR11.SA", "HGLG11": "HGLG11.SA", "MXRF11": "MXRF11.SA"}
+        ativos = {"Petrobras (PETR4)": "PETR4.SA", "Vale (VALE3)": "VALE3.SA", "Itaú (ITUB4)": "ITUB4.SA", "Ambev (ABEV3)": "ABEV3.SA", "XP Malls (XPML11)": "XPML11.SA", "MXRF11": "MXRF11.SA", "HGLG11": "HGLG11.SA", "KNCR11": "KNCR11.SA"}
     elif mercado == "Commodities":
         ativos = {"Soja": "ZS=F", "Milho": "ZC=F", "Petróleo Brent": "BZ=F", "Ouro": "GC=F", "Prata": "SI=F", "Café": "KC=F", "Algodão": "CT=F"}
     else:
         ativos = {"Bitcoin (USD)": "BTC-USD", "Ethereum (ETH)": "ETH-USD", "Solana (USD)": "SOL-USD", "Dólar para Real": "USDBRL=X", "S&P 500": "^GSPC"}
     
-    nome_ativo = st.selectbox("Ativo:", list(ativos.keys()))
+    nome_ativo = st.selectbox("Escolha o Ativo:", list(ativos.keys()))
     ticker = ativos[nome_ativo]
     
     st.markdown("---")
-    moeda_v = st.radio("Moeda de Exibição:", ["USD", "BRL", "EUR"], horizontal=True)
+    moeda_v = st.radio("Câmbio de Exibição:", ["USD", "BRL", "EUR"], horizontal=True)
     banca = st.select_slider("Banca de Operação:", options=[100, 1000, 5000, 10000, 50000, 100000, 1000000], value=1000)
 
-# 3. Processamento
+# 3. Processamento de Dados (Só executa se autenticado)
 usd_brl, eur_usd = get_cambio()
 df = get_clean_data(ticker)
 
 if df is not None and len(df) > 20:
+    # RSI
     delta = df['Close'].diff()
     gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
     loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
@@ -84,6 +94,7 @@ if df is not None and len(df) > 20:
     rsi_atual = float(df['RSI'].iloc[-1])
     p_raw = float(df['Close'].iloc[-1])
     
+    # Conversão de Centavos (Soja/Milho)
     is_cents = ("Soja" in nome_ativo or "Milho" in nome_ativo)
     p_unit_usd = p_raw / 100 if is_cents else p_raw
     m_origem = "BRL" if ticker.endswith(".SA") or "BRL" in ticker else "USD"
@@ -93,7 +104,7 @@ if df is not None and len(df) > 20:
     else:
         p_final = p_unit_usd / usd_brl if moeda_v == "USD" else (p_unit_usd / usd_brl) / 1.08 if moeda_v == "EUR" else p_unit_usd
 
-    # 4. Banner Clean
+    # 4. Interface Principal
     if rsi_atual < 35: acao, cor = "COMPRAR", "#108542"
     elif rsi_atual > 65: acao, cor = "VENDER", "#a50e0e"
     else: acao, cor = "AGUARDAR", "#d97706"
@@ -127,6 +138,6 @@ if df is not None and len(df) > 20:
         fig_rsi.update_layout(template="plotly_dark", height=350, yaxis=dict(range=[0, 100]), margin=dict(l=0,r=0,t=0,b=0))
         st.plotly_chart(fig_rsi, use_container_width=True)
 else:
-    st.error("Aguardando conexão com o terminal de dados...")
+    st.info("Aguardando seleção e termo de aceite para carregar dados...")
 
 st.markdown('<div style="text-align:center; color:#4b5563; font-size:12px; margin-top:30px;">VULKAN MARKET SCAN | Professional Data Analytics</div>', unsafe_allow_html=True)
