@@ -4,7 +4,7 @@ import pandas as pd
 import plotly.graph_objects as go
 
 # 1. Configuração e Estilo
-st.set_page_config(page_title="VULKAN SYSTEM", layout="wide")
+st.set_page_config(page_title="VULKAN | MARKET SCAN", layout="wide")
 
 st.markdown("""
     <style>
@@ -18,17 +18,18 @@ st.markdown("""
         background-color: #1e293b; padding: 15px; border-radius: 8px; border-left: 5px solid #ef4444; 
         margin-bottom: 20px; font-size: 15px; color: #f8fafc; line-height: 1.6;
     }
-    .alert-text { color: #f87171; font-weight: 900; text-decoration: underline; font-size: 18px; }
+    .highlight-cents { color: #f87171; font-weight: 900; text-decoration: underline; font-size: 18px; }
+    .logo-text { font-size: 24px; font-weight: bold; color: #FFFFFF; margin-bottom: -10px; }
+    .sub-logo { font-size: 12px; letter-spacing: 3px; color: #FF4500; font-weight: bold; }
     </style>
     """, unsafe_allow_html=True)
 
-# Funções de Dados Blindadas
+# Funções de Dados
 @st.cache_data(ttl=600)
 def get_clean_data(ticker):
     try:
         df = yf.download(ticker, period="6mo", interval="1d", progress=False)
         if df.empty: return None
-        # Correção para o novo formato do Yahoo Finance (Multi-Index)
         if isinstance(df.columns, pd.MultiIndex):
             df.columns = df.columns.get_level_values(0)
         return df
@@ -39,15 +40,17 @@ def get_cambio():
     try:
         usd = yf.download("USDBRL=X", period="1d", progress=False)
         if isinstance(usd.columns, pd.MultiIndex): usd.columns = usd.columns.get_level_values(0)
-        return float(usd['Close'].iloc[-1]), 5.15
+        return float(usd['Close'].iloc[-1]), 1.08
     except: return 5.15, 1.08
 
 # 2. Sidebar
 with st.sidebar:
-    st.title("🛡️ VULKAN SYSTEM")
+    st.markdown('<div class="logo-text">VULKAN</div><div class="sub-logo">MARKET SCAN</div>', unsafe_allow_html=True)
+    st.markdown("---")
+    
     if 'auth' not in st.session_state: st.session_state.auth = False
     if not st.session_state.auth:
-        if st.checkbox("Aceito os Termos de Responsabilidade"):
+        if st.checkbox("Liberar Acesso Profissional"):
             st.session_state.auth = True
             st.rerun()
         st.stop()
@@ -65,15 +68,14 @@ with st.sidebar:
     ticker = ativos[nome_ativo]
     
     st.markdown("---")
-    moeda_v = st.radio("Moeda:", ["USD", "BRL", "EUR"], horizontal=True)
-    banca = st.select_slider("Sua Banca:", options=[100, 1000, 5000, 10000, 50000, 100000, 1000000], value=1000)
+    moeda_v = st.radio("Moeda de Exibição:", ["USD", "BRL", "EUR"], horizontal=True)
+    banca = st.select_slider("Banca de Operação:", options=[100, 1000, 5000, 10000, 50000, 100000, 1000000], value=1000)
 
 # 3. Processamento
 usd_brl, eur_usd = get_cambio()
 df = get_clean_data(ticker)
 
 if df is not None and len(df) > 20:
-    # Cálculo RSI Profissional
     delta = df['Close'].diff()
     gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
     loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
@@ -91,7 +93,7 @@ if df is not None and len(df) > 20:
     else:
         p_final = p_unit_usd / usd_brl if moeda_v == "USD" else (p_unit_usd / usd_brl) / 1.08 if moeda_v == "EUR" else p_unit_usd
 
-    # 4. Interface
+    # 4. Banner Clean
     if rsi_atual < 35: acao, cor = "COMPRAR", "#108542"
     elif rsi_atual > 65: acao, cor = "VENDER", "#a50e0e"
     else: acao, cor = "AGUARDAR", "#d97706"
@@ -101,31 +103,30 @@ if df is not None and len(df) > 20:
     if is_cents:
         st.markdown(f"""
             <div class="info-box">
-                🚨 <b>IMPORTANTE:</b> O valor de {p_raw:,.2f} na bolsa refere-se a <span class="alert-text">CENTAVOS DE DÓLAR</span>. <br>
-                💵 Isso equivale a <b>USD {p_unit_usd:,.4f}</b> por bushel. <br>
+                🚨 <b>AVISO DE MERCADO:</b> O valor de {p_raw:,.2f} refere-se a <span class="highlight-cents">CENTAVOS DE DÓLAR</span>. <br>
+                💵 Unidade: <b>USD {p_unit_usd:,.4f}</b> por bushel. <br>
                 📌 <b>Saca (60kg) estimada:</b> {moeda_v} {(p_final * 2.3622):,.2f}
             </div>
         """, unsafe_allow_html=True)
 
     c1, c2, c3 = st.columns(3)
-    c1.metric("Preço Atual", f"{moeda_v} {p_final:,.2f}")
-    c2.metric("Força RSI", f"{rsi_atual:.2f}")
-    c3.metric("Risco (2%)", f"{moeda_v} {(banca * 0.02):,.2f}")
+    c1.metric("Preço por Unidade", f"{moeda_v} {p_final:,.2f}")
+    c2.metric("Termômetro RSI", f"{rsi_atual:.2f}")
+    c3.metric("Risco Sugerido (2%)", f"{moeda_v} {(banca * 0.02):,.2f}")
 
-    t1, t2 = st.tabs(["📊 Gráfico de Velas", "📈 Força Relativa (RSI)"])
+    t1, t2 = st.tabs(["📊 Gráfico Terminal", "📈 Análise de Força"])
     with t1:
         fig = go.Figure(data=[go.Candlestick(x=df.index, open=df['Open'], high=df['High'], low=df['Low'], close=df['Close'], name='Preço')])
         fig.update_layout(template="plotly_dark", height=450, xaxis_rangeslider_visible=False, margin=dict(l=0,r=0,t=0,b=0))
         st.plotly_chart(fig, use_container_width=True)
     with t2:
         fig_rsi = go.Figure()
-        fig_rsi.add_trace(go.Scatter(x=df.index, y=df['RSI'], name='RSI', line=dict(color='#9b51e0', width=2)))
-        # Zonas de Cor no RSI
+        fig_rsi.add_trace(go.Scatter(x=df.index, y=df['RSI'], name='RSI', line=dict(color='#FF4500', width=2)))
         fig_rsi.add_hrect(y0=70, y1=100, fillcolor="red", opacity=0.15, line_width=0)
         fig_rsi.add_hrect(y0=0, y1=30, fillcolor="green", opacity=0.15, line_width=0)
-        fig_rsi.add_hline(y=70, line_dash="dash", line_color="red", opacity=0.5)
-        fig_rsi.add_hline(y=30, line_dash="dash", line_color="green", opacity=0.5)
         fig_rsi.update_layout(template="plotly_dark", height=350, yaxis=dict(range=[0, 100]), margin=dict(l=0,r=0,t=0,b=0))
         st.plotly_chart(fig_rsi, use_container_width=True)
 else:
-    st.error("Erro ao carregar dados. Tente alterar o ativo.")
+    st.error("Aguardando conexão com o terminal de dados...")
+
+st.markdown('<div style="text-align:center; color:#4b5563; font-size:12px; margin-top:30px;">VULKAN MARKET SCAN | Professional Data Analytics</div>', unsafe_allow_html=True)
