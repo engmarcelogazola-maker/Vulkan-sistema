@@ -4,136 +4,115 @@ import pandas as pd
 import plotly.graph_objects as go
 import numpy as np
 
-# 1. Configuração de Estilo e Página
+# 1. Setup e Estilo Minimalista
 st.set_page_config(page_title="VULKAN SYSTEM", layout="wide")
 
 st.markdown("""
     <style>
     .main { background-color: #0e1117; }
     .stMetric { background-color: #161b22; border-radius: 12px; padding: 18px; border: 1px solid #30363d; }
-    .status-banner { padding: 25px; border-radius: 15px; text-align: center; margin-bottom: 25px; border: 1px solid rgba(255,255,255,0.1); box-shadow: 0 4px 10px rgba(0,0,0,0.3); }
-    .info-box { background-color: #1e293b; padding: 15px; border-radius: 10px; border-left: 5px solid #3b82f6; margin-bottom: 20px; font-size: 14px; color: #e2e8f0; }
-    .clean-disclaimer { font-size: 12px; color: #4b5563; text-align: center; margin-top: 50px; padding: 20px; border-top: 1px solid #1f2937; }
+    .status-banner { 
+        padding: 20px; 
+        border-radius: 10px; 
+        text-align: center; 
+        margin-bottom: 25px; 
+        font-weight: bold;
+        font-size: 24px;
+        letter-spacing: 1px;
+    }
+    .info-box { background-color: #1e293b; padding: 15px; border-radius: 8px; border-left: 5px solid #3b82f6; margin-bottom: 20px; font-size: 14px; color: #cbd5e1; line-height: 1.6; }
     </style>
     """, unsafe_allow_html=True)
 
-# Função para conversão de moedas em tempo real
 @st.cache_data(ttl=3600)
 def get_cambio():
     try:
         usd_brl = yf.download("USDBRL=X", period="1d", progress=False)['Close'].iloc[-1]
         eur_usd = yf.download("EURUSD=X", period="1d", progress=False)['Close'].iloc[-1]
         return float(usd_brl), float(eur_usd)
-    except:
-        return 5.15, 1.08 
+    except: return 5.15, 1.08
 
 usd_brl_rate, eur_usd_rate = get_cambio()
 
 # 2. Barra Lateral
 with st.sidebar:
     st.title("🛡️ VULKAN SYSTEM")
-    st.markdown("---")
-    
-    if 'aceitou_termo' not in st.session_state:
-        st.session_state.aceitou_termo = False
-
-    if not st.session_state.aceitou_termo:
-        st.subheader("📋 Termo de Responsabilidade")
-        if st.checkbox("Aceito que esta é uma ferramenta de apoio e sou responsável por minhas operações."):
-            st.session_state.aceitou_termo = True
+    if 'aceitou' not in st.session_state: st.session_state.aceitou = False
+    if not st.session_state.aceitou:
+        if st.checkbox("Aceito os termos de responsabilidade"):
+            st.session_state.aceitou = True
             st.rerun()
         st.stop()
-
-    # Janela 01: Mercado
-    st.subheader("🌐 Mercado")
-    mercado = st.selectbox("Escolha a categoria:", ["Bolsa Brasileira (B3)", "Commodities", "Moedas & Cripto"], label_visibility="collapsed")
-
-    # Janela 02: Ativo (Listas Completas e Fixas)
-    st.subheader("📈 Ativo")
-    if mercado == "Bolsa Brasileira (B3)":
-        lista_ativos = {
-            "Petrobras (PETR4)": "PETR4.SA", "Vale (VALE3)": "VALE3.SA", "Itaú (ITUB4)": "ITUB4.SA",
-            "Ambev (ABEV3)": "ABEV3.SA", "XP Malls (XPML11)": "XPML11.SA", "KNCR11": "KNCR11.SA",
-            "HGLG11": "HGLG11.SA", "MXRF11": "MXRF11.SA"
-        }
-    elif mercado == "Commodities":
-        lista_ativos = {
-            "Soja": "ZS=F", "Milho": "ZC=F", "Petróleo Brent": "BZ=F", 
-            "Ouro": "GC=F", "Prata": "SI=F", "Café": "KC=F", "Algodão": "CT=F"
-        }
-    else:
-        lista_ativos = {
-            "Bitcoin (USD)": "BTC-USD", "Ethereum (ETH)": "ETH-USD", "Solana (USD)": "SOL-USD",
-            "Dólar para Real": "USDBRL=X", "Euro para Dólar": "EURUSD=X", "S&P 500 Index": "^GSPC"
-        }
     
-    escolha_nome = st.selectbox("Selecione o ativo:", list(lista_ativos.keys()), label_visibility="collapsed")
-    ticker = lista_ativos[escolha_nome]
-
+    mercado = st.selectbox("Mercado:", ["Bolsa Brasileira (B3)", "Commodities", "Moedas & Cripto"])
+    
+    if mercado == "Bolsa Brasileira (B3)":
+        lista = {"Petrobras (PETR4)": "PETR4.SA", "Vale (VALE3)": "VALE3.SA", "Itaú (ITUB4)": "ITUB4.SA", "Ambev (ABEV3)": "ABEV3.SA", "XP Malls (XPML11)": "XPML11.SA", "MXRF11": "MXRF11.SA", "HGLG11": "HGLG11.SA", "KNCR11": "KNCR11.SA"}
+    elif mercado == "Commodities":
+        lista = {"Soja": "ZS=F", "Milho": "ZC=F", "Petróleo Brent": "BZ=F", "Ouro": "GC=F", "Prata": "SI=F", "Café": "KC=F", "Algodão": "CT=F"}
+    else:
+        lista = {"Bitcoin (USD)": "BTC-USD", "Ethereum (ETH)": "ETH-USD", "Solana (USD)": "SOL-USD", "Dólar para Real": "USDBRL=X", "S&P 500 Index": "^GSPC"}
+    
+    nome_ativo = st.selectbox("Ativo:", list(lista.keys()))
+    ticker = lista[nome_ativo]
+    
     st.markdown("---")
-    st.subheader("💰 Gestão de Banca")
-    moeda_banca = st.radio("Moeda de Exibição:", ["USD", "BRL", "EUR"], horizontal=True)
-    valor_banca = st.select_slider("Valor total da Banca:", options=[100, 1000, 5000, 10000, 50000, 100000, 1000000], value=1000)
+    moeda_b = st.radio("Exibir em:", ["USD", "BRL", "EUR"], horizontal=True)
+    banca = st.select_slider("Banca:", options=[100, 1000, 5000, 10000, 50000, 100000, 1000000], value=1000)
 
 # 3. Processamento de Dados
 dados = yf.download(ticker, period="6mo", interval="1d", progress=False)
 
 if not dados.empty:
-    dados['SMA20'] = dados['Close'].rolling(window=20).mean()
     delta = dados['Close'].diff()
     gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
     loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
-    dados['RSI'] = 100 - (100 / (1 + (gain / loss)))
-
-    preco_cru = float(dados['Close'].values.ravel()[-1])
-    rsi_val = float(dados['RSI'].values.ravel()[-1])
-
-    # Lógica de Conversão Profissional
-    is_centavos = ("Soja" in escolha_nome or "Milho" in escolha_nome)
-    moeda_origem = "BRL" if ticker.endswith(".SA") or ticker == "USDBRL=X" else "USD"
+    rsi_series = 100 - (100 / (1 + (gain / loss)))
     
-    preco_unidade_base = preco_cru / 100 if is_centavos else preco_cru
+    p_raw = float(dados['Close'].values.ravel()[-1])
+    r_val = float(rsi_series.values.ravel()[-1])
+
+    # Lógica de Preço e Conversão (Blindada)
+    is_cents = ("Soja" in nome_ativo or "Milho" in nome_ativo)
+    p_base = p_raw / 100 if is_cents else p_raw
+    m_origem = "BRL" if ticker.endswith(".SA") or ticker == "USDBRL=X" else "USD"
     
-    if moeda_origem == "USD":
-        if moeda_banca == "BRL": preco_exibicao = preco_unidade_base * usd_brl_rate
-        elif moeda_banca == "EUR": preco_exibicao = preco_unidade_base / eur_usd_rate
-        else: preco_exibicao = preco_unidade_base
+    if m_origem == "USD":
+        p_final = p_base * usd_brl_rate if moeda_b == "BRL" else p_base / eur_usd_rate if moeda_b == "EUR" else p_base
     else:
-        if moeda_banca == "USD": preco_exibicao = preco_unidade_base / usd_brl_rate
-        elif moeda_banca == "EUR": preco_exibicao = (preco_unidade_base / usd_brl_rate) / eur_usd_rate
-        else: preco_exibicao = preco_unidade_base
+        p_final = p_base / usd_brl_rate if moeda_b == "USD" else (p_base / usd_brl_rate) / eur_usd_rate if moeda_b == "EUR" else p_base
 
-    # 4. Interface
-    cor = "#108542" if rsi_val < 35 else "#a50e0e" if rsi_val > 65 else "#d97706"
-    sinal = "COMPRA" if rsi_val < 35 else "VENDA / RISCO" if rsi_val > 65 else "NEUTRO"
-    
-    st.markdown(f'<div class="status-banner" style="background-color:{cor};"><h1>VEREDITO VULKAN: {sinal} em {escolha_nome.upper()}</h1></div>', unsafe_allow_html=True)
+    # 4. Banner Ultra-Clean
+    if r_val < 35: acao, cor = "COMPRAR", "#108542"
+    elif r_val > 65: acao, cor = "VENDER", "#a50e0e"
+    else: acao, cor = "AGUARDAR", "#d97706"
 
-    if is_centavos:
-        saca_60kg = preco_exibicao * 2.3622
+    st.markdown(f'<div class="status-banner" style="background-color:{cor}; color: white;">{acao} {nome_ativo.upper()}</div>', unsafe_allow_html=True)
+
+    # Nota Técnica Dinâmica com Ênfase em CENTAVOS
+    if is_cents:
         st.markdown(f"""
             <div class="info-box">
-                <b>Nota Técnica:</b> Em Chicago, o {escolha_nome} é cotado em centavos. 
-                O valor de <b>{preco_cru:.2f} USD</b> equivale a <b>USD {(preco_cru/100):.4f}</b> por bushel. <br>
-                📌 <b>Contrato Padrão:</b> 5.000 bushels | <b>Conversão estimada:</b> {moeda_banca} {saca_60kg:.2f} por saca (60kg).
+                <b>Nota Técnica:</b> Em Chicago, o preço de <b>{p_raw:,.2f}</b> refere-se a <b>CENTAVOS DE DÓLAR</b>. <br>
+                💵 Isso equivale a <b>USD {p_base:,.4f}</b> por bushel. <br>
+                📌 <b>Contrato Padrão:</b> 5.000 bushels | <b>Conversão estimada:</b> {moeda_b} {(p_final * 2.3622):,.2f} por saca (60kg).
             </div>
         """, unsafe_allow_html=True)
 
+    # Métricas
     c1, c2, c3 = st.columns(3)
-    c1.metric("Preço por Unidade", f"{moeda_banca} {preco_exibicao:,.4f}")
-    c2.metric("Termômetro RSI", f"{rsi_val:.2f}")
-    c3.metric("Risco Sugerido (2%)", f"{moeda_banca} {(valor_banca * 0.02):,.2f}")
+    c1.metric("Preço Atual", f"{moeda_b} {p_final:,.2f}")
+    c2.metric("Força (RSI)", f"{r_val:.2f}")
+    c3.metric("Risco (2%)", f"{moeda_b} {(banca * 0.02):,.2f}")
 
-    tab1, tab2 = st.tabs(["📈 Gráfico de Preço", "📉 Filtro RSI"])
+    tab1, tab2 = st.tabs(["📈 Gráfico", "📉 Indicador"])
     with tab1:
-        fig_p = go.Figure(data=[go.Candlestick(x=dados.index, open=dados['Open'], high=dados['High'], low=dados['Low'], close=dados['Close'], name='Preço')])
-        fig_p.update_layout(template="plotly_dark", height=450, xaxis_rangeslider_visible=False, margin=dict(l=10, r=10, t=10, b=10))
-        st.plotly_chart(fig_p, use_container_width=True)
+        fig = go.Figure(data=[go.Candlestick(x=dados.index, open=dados['Open'], high=dados['High'], low=dados['Low'], close=dados['Close'])])
+        fig.update_layout(template="plotly_dark", height=450, xaxis_rangeslider_visible=False, margin=dict(l=0, r=0, t=0, b=0))
+        st.plotly_chart(fig, use_container_width=True)
     with tab2:
-        fig_r = go.Figure(data=[go.Scatter(x=dados.index, y=dados['RSI'], line=dict(color='#9b51e0', width=2))])
-        fig_r.update_layout(template="plotly_dark", height=350, yaxis=dict(range=[0, 100]))
-        st.plotly_chart(fig_r, use_container_width=True)
+        st.line_chart(rsi_series)
 
-    st.markdown('<div class="clean-disclaimer">VULKAN SYSTEM | Inteligência Aplicada ao Mercado Multicamadas.</div>', unsafe_allow_html=True)
+    st.markdown('<div style="text-align:center; color:#4b5563; font-size:12px; margin-top:30px;">VULKAN SYSTEM | Inteligência Aplicada ao Mercado Multicamadas</div>', unsafe_allow_html=True)
 else:
-    st.error("⚠️ Dados não disponíveis para este ativo no momento.")
+    st.error("Dados indisponíveis para este ativo.")
